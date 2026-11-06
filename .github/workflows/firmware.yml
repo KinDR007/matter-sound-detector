@@ -64,14 +64,14 @@ jobs:
       - name: Build
         env:
           NCS_DIRECT: "1"
-          NCS_DIR: ${{ github.workspace }}/ncs
-        run: app/scripts/fw.sh pristine
+        # $GITHUB_WORKSPACE is the path inside the container (github.workspace is the host path)
+        run: NCS_DIR="$GITHUB_WORKSPACE/ncs" app/scripts/fw.sh pristine
 
       - name: Package
         env:
           NCS_DIRECT: "1"
-          NCS_DIR: ${{ github.workspace }}/ncs
-        run: app/scripts/fw.sh package "$GITHUB_WORKSPACE/dist"
+        # $GITHUB_WORKSPACE is the path inside the container (github.workspace is the host path)
+        run: NCS_DIR="$GITHUB_WORKSPACE/ncs" app/scripts/fw.sh package "$GITHUB_WORKSPACE/dist"
 
       - name: Remove key
         if: always()

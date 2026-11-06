@@ -65,7 +65,9 @@ package)
 		"$BUILD/matter_factory_data/zephyr/factory_data.hex"
 	cp "$BUILD/matter.ota" "$OUT/$NAME.ota"
 	cp "$BUILD/dfu_application.zip" "$OUT/$NAME-dfu.zip"
-	(cd "$OUT" && shasum -a 256 "$NAME".* "$NAME"-dfu.zip >SHA256SUMS)
+	# sha256sum on Linux; shasum (Perl) clashes with the Perl of the CI toolchain image
+	if command -v sha256sum >/dev/null; then SUM=(sha256sum); else SUM=(shasum -a 256); fi
+	(cd "$OUT" && "${SUM[@]}" "$NAME".* "$NAME"-dfu.zip >SHA256SUMS)
 	ls -l "$OUT"
 	;;
 monitor)
