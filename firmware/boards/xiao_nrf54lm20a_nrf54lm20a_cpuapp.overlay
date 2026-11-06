@@ -1,0 +1,25 @@
+#include "xiao_matter_partitions.dtsi"
+
+/ {
+	aliases {
+		watchdog0 = &wdt31;
+	};
+
+	chosen {
+		nordic,pm-ext-flash = &py25q64;
+	};
+};
+
+&wdt31 {
+	status = "okay";
+};
+
+/* Sense variant: PDM microphone, supply (PMIC LDO1) enabled at boot */
+dmic_dev: &pdm20 {
+	status = "okay";
+};
+
+/* As in Seeed's zephyr-dmic example */
+&pwm20 {
+	status = "disabled";
+};

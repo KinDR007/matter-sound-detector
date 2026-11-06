@@ -1,0 +1,90 @@
+name: firmware
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  NCS_VERSION: v3.4.2
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # nRF Connect SDK toolchain; BASH_ENV puts west, cmake, the compiler on PATH
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.4.2
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: Cache nRF Connect SDK
+        id: ncs-cache
+        uses: actions/cache@v4
+        with:
+          path: ncs
+          key: ncs-${{ env.NCS_VERSION }}-1
+
+      - name: Fetch nRF Connect SDK
+        if: steps.ncs-cache.outputs.cache-hit != 'true'
+        run: |
+          west init -m https://github.com/nrfconnect/sdk-nrf --mr "$NCS_VERSION" ncs
+          cd ncs
+          west update --narrow -o=--depth=1
+
+      - name: Check version tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(awk -F' = ' '/^VERSION_MAJOR/{a=$2} /^VERSION_MINOR/{b=$2} /^PATCHLEVEL/{c=$2} END{print a"."b"."c}' app/firmware/VERSION)
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME does not match firmware/VERSION $v"; exit 1; }
+
+      - name: Signing key
+        env:
+          KEY: ${{ secrets.MCUBOOT_KEY_PEM }}
+        run: |
+          if [ -n "$KEY" ]; then
+            printf '%s\n' "$KEY" > "$RUNNER_TEMP/mcuboot-ed25519.pem"
+            echo "MCUBOOT_KEY=$RUNNER_TEMP/mcuboot-ed25519.pem" >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "MCUBOOT_KEY_PEM secret missing, refusing to release a development-key build"
+            exit 1
+          else
+            echo "::warning::MCUBOOT_KEY_PEM not available (fork or PR), signing with the public NCS development key"
+            echo "MCUBOOT_KEY=/nonexistent" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build
+        env:
+          NCS_DIRECT: "1"
+          NCS_DIR: ${{ github.workspace }}/ncs
+        run: app/scripts/fw.sh pristine
+
+      - name: Package
+        env:
+          NCS_DIRECT: "1"
+          NCS_DIR: ${{ github.workspace }}/ncs
+        run: app/scripts/fw.sh package "$GITHUB_WORKSPACE/dist"
+
+      - name: Remove key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/mcuboot-ed25519.pem"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: dist/
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

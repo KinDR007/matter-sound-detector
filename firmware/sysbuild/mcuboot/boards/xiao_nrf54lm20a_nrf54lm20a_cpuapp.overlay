@@ -1,0 +1,8 @@
+#include "../../../boards/xiao_matter_partitions.dtsi"
+
+/ {
+	chosen {
+		zephyr,code-partition = &boot_partition;
+		nordic,pm-ext-flash = &py25q64;
+	};
+};
